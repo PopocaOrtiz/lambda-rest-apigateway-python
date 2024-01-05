@@ -1,8 +1,7 @@
-import io
 import base64
 
 from chalice.app import Chalice, Response
-import matplotlib.pyplot as plt
+import pygal
 
 from chalicelib.pokeapi import api
 from chalicelib.calculate.growth_time import GrowthTimeStats
@@ -39,26 +38,33 @@ def all_berry_stats():
 
 @app.route('/allBerryStats/histogram')
 def all_berry_stats_histogram():
+
     res = fetch_growth_time_stats_from_api()
-    frequency_growth_time = res['frequency_growth_time']
+
+    frequency_growth_time = {}
+    for i in range(res['min_growth_time'], res['max_growth_time'] + 1):
+        if i in res['frequency_growth_time']:
+            frequency_growth_time[i] = res['frequency_growth_time'][i]
+        else:
+            frequency_growth_time[i] = 0
 
     values = list(frequency_growth_time.keys())
     repetitions = list(frequency_growth_time.values())
 
-    plt.bar(values, repetitions)
-    plt.xlabel('Growth Time')
-    plt.ylabel('Number of Repetitions')
-    plt.title('Growth Time Histogram')
+    # Create a Pygal Bar chart
+    chart = pygal.Bar()
+    chart.x_labels = values
+    chart.add('Repetitions', repetitions)
 
-    buffer = io.BytesIO()
-    plt.savefig(buffer, format='png')
-    buffer.seek(0)
+    # Render the chart to a file
+    chart.render_to_file('/tmp/histogram.svg')
 
-    # Convert the plot to a base64 string
-    plot_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+    # Read the rendered chart file
+    with open('/tmp/histogram.svg', 'rb') as f:
+        plot_base64 = base64.b64encode(f.read()).decode('utf-8')
 
     return Response(
-        body="""<html><body><img src="data:image/png;base64,{}" /></body></html>""".format(plot_base64),
+        body="""<html><body><img style="width:800px" src="data:image/svg+xml;base64,{}" /></body></html>""".format(plot_base64),
         headers={'Content-Type': 'text/html'},
         status_code=200
     )
